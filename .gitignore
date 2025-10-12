@@ -1,2 +1,2 @@
-backend/scan_scripts/.venv
+.venv
 backend/scan_scripts/__pycache__

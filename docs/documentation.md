@@ -4,14 +4,19 @@ Installation
     Globally: apt install python3-scapy
     In venv: python3 -m pip install scapy
 
- Install venv:
- cd ./backend/scan_scripts
- sudo apt install python3.12-venv
- 
- Start venv:
- sudo python3 -m venv .venv
+Install venv:
+cd ./backend/scan_scripts
+sudo apt install python3.12-venv
+
+Activate venv:
+~/Kingmax/DevProjects/wifi-device-manager/backend/
+source scan_scripts/.venv/bin/activate
+
+Start venv:
+sudo python3 -m venv .venv
 
 !Set up virtual env interpreter
+Run from project root (wifi-device-manager) if encounter import errors.
 
 
 Create new WebApi
