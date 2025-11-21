@@ -1,2 +1,8 @@
 .venv
 backend/scan_scripts/__pycache__
+.vs
+backend\backend.csproj.user
+backend\bin
+backend\obj
+tools\__pycache__
+tools\oui.txt
