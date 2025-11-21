@@ -5,8 +5,18 @@ import socket
 import subprocess
 import time
 import sys
+import os
+import platform
+import re
+from pathlib import Path
 from shutil import which
-from scapy.all import conf, get_if_addr, get_if_hwaddr, srp, ARP, Ether
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+# Add project root to Python path to allow imports
+script_dir = Path(__file__).resolve().parent
+project_root = script_dir.parent.parent  # Go up from scan_scripts -> backend -> project root
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
 from backend.scan_scripts.tools.oui_loader import load_oui, lookup_oui
 
@@ -14,15 +24,40 @@ mapping = load_oui()
 
 COMMON_PORTS = [22, 80, 139, 443, 445, 3389, 5353, 1900]
 
+IS_WINDOWS = platform.system() == "Windows"
+
+# Only import scapy on non-Windows or if available
+if not IS_WINDOWS:
+    try:
+        from scapy.all import conf, get_if_addr, get_if_hwaddr, srp, ARP, Ether
+        SCAPY_AVAILABLE = True
+    except ImportError:
+        SCAPY_AVAILABLE = False
+else:
+    SCAPY_AVAILABLE = False
+
 #Returns the local networks's default interface, ip and network.
 def get_local_iface_and_network():
-    try:
-        gw = conf.route.route("0.0.0.0")[0]
-    except:
-        gw: None
-    #conf.iface is default iface
-    iface = conf.iface
-    ip = get_if_addr(iface)
+    if IS_WINDOWS or not SCAPY_AVAILABLE:
+        # Windows fallback: use socket to get local IP
+        hostname = socket.gethostname()
+        ip = socket.gethostbyname(hostname)
+        # Try to get default gateway interface
+        try:
+            result = subprocess.run(['route', 'print', '0.0.0.0'], 
+                                  capture_output=True, text=True, timeout=2)
+            # Parse interface name from route output
+            iface = "Unknown"
+        except:
+            iface = "Unknown"
+    else:
+        try:
+            gw = conf.route.route("0.0.0.0")[0]
+        except:
+            gw: None
+        #conf.iface is default iface
+        iface = conf.iface
+        ip = get_if_addr(iface)
 
     parts = ip.split('.')
     parts[-1] = '0/24'
@@ -38,7 +73,64 @@ def get_local_network():
     parts[-1] = '0/24'
     return '.'.join(parts)
 
+def arp_scan_windows(network, timeout=2):
+    """Windows-compatible ARP scan using arp -a command and ping sweep"""
+    devices = []
+    
+    # Get ARP table entries
+    try:
+        result = subprocess.run(['arp', '-a'], capture_output=True, text=True, timeout=5)
+        arp_output = result.stdout
+        
+        # Parse ARP table: format is "192.168.1.1   00-11-22-33-44-55   dynamic"
+        arp_pattern = r'(\d+\.\d+\.\d+\.\d+)\s+([0-9a-fA-F]{2}[:-][0-9a-fA-F]{2}[:-][0-9a-fA-F]{2}[:-][0-9a-fA-F]{2}[:-][0-9a-fA-F]{2}[:-][0-9a-fA-F]{2})'
+        matches = re.findall(arp_pattern, arp_output)
+        
+        arp_dict = {}
+        for ip, mac in matches:
+            # Normalize MAC address format
+            mac = mac.replace('-', ':').lower()
+            arp_dict[ip] = mac
+    except Exception as e:
+        arp_dict = {}
+    
+    # Extract network base (e.g., 192.168.1.0/24 -> 192.168.1)
+    network_base = network.split('/')[0]
+    base_parts = network_base.split('.')
+    base_ip = '.'.join(base_parts[:3])
+    
+    # Ping sweep to discover active devices
+    def ping_host(host_num):
+        ip = f"{base_ip}.{host_num}"
+        try:
+            # Windows ping: -n 1 = send 1 packet, -w 500 = timeout 500ms
+            result = subprocess.run(['ping', '-n', '1', '-w', '500', ip], 
+                                  capture_output=True, timeout=1)
+            if result.returncode == 0:
+                mac = arp_dict.get(ip)
+                if mac:
+                    return {"ip": ip, "mac": mac}
+                else:
+                    # Device responded but not in ARP table yet, try to get MAC
+                    return {"ip": ip, "mac": None}
+        except:
+            pass
+        return None
+    
+    # Scan common IPs (1-254) with limited concurrency
+    with ThreadPoolExecutor(max_workers=50) as executor:
+        futures = [executor.submit(ping_host, i) for i in range(1, 255)]
+        for future in as_completed(futures):
+            result = future.result()
+            if result:
+                devices.append(result)
+    
+    return devices
+
 def arp_scan(iface, network, timeout=2):
+    if IS_WINDOWS or not SCAPY_AVAILABLE:
+        return arp_scan_windows(network, timeout)
+    
     conf.verb = 0 # Do not write logs to console
     #Creates an ethernet header and payload for target mac 
     #Broadcast ARP requests for given network
@@ -79,7 +171,7 @@ def tcp_probe(ip, port, timeout=1.0):
             # Otherwise throws exception 
             s.settimeout(timeout) 
             s.connect((ip, port))
-            # For further mapping, if this returns a banner, the device type can be extracted from it            try:
+            # For further mapping, if this returns a banner, the device type can be extracted from it
             try:
                 banner = s.recv(1024).decode(errors='ignore').strip()
                 return True, banner
@@ -114,12 +206,16 @@ def perform_enchance_scan():
         ip = d.get("ip")
         mac = d.get("mac")
         name = reverse_dns(ip)
-        vendor = lookup_oui(mac, mapping)
+        
+        # Only lookup vendor if MAC address is available
+        vendor = lookup_oui(mac, mapping) if mac else None
         
         open_ports = []
         for p in COMMON_PORTS:
-            if tcp_probe(ip, p, timeout=0.6):
+            result = tcp_probe(ip, p, timeout=0.6)
+            if result:  # result is either False or (True, banner)
                 open_ports.append(p)
+            
         devinfo = {
             "ip": ip,
             "mac": mac,

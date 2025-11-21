@@ -9,7 +9,7 @@ CACHE_PATH = Path("tools/oui.txt")
 def download_oui(url=IEEE_OUI_URL, outpath=CACHE_PATH, force=False):
     outpath.parent.mkdir(parents=True, exist_ok=True)
     if outpath.exists() and not force:
-        print(f"Using cached OUI file at {outpath}")
+        # print(f"Using cached OUI file at {outpath}")
         return outpath
     print("Downloading OUI file from IEEE...")
     r = requests.get(url, timeout=30)
