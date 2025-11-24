@@ -11,11 +11,11 @@ def download_oui(url=IEEE_OUI_URL, outpath=CACHE_PATH, force=False):
     if outpath.exists() and not force:
         # print(f"Using cached OUI file at {outpath}")
         return outpath
-    print("Downloading OUI file from IEEE...")
+    # print("Downloading OUI file from IEEE...")
     r = requests.get(url, timeout=30)
     r.raise_for_status()
     outpath.write_text(r.text, encoding="utf-8")
-    print("Saved OUI file to", outpath)
+    # print("Saved OUI file to", outpath)
     return outpath
 
 def parse_oui_file(path):
