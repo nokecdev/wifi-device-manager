@@ -12,7 +12,7 @@ def download_oui(url=IEEE_OUI_URL, outpath=CACHE_PATH, force=False):
         # print(f"Using cached OUI file at {outpath}")
         return outpath
     # print("Downloading OUI file from IEEE...")
-    r = requests.get(url, timeout=30)
+    r = requests.get(url, timeout=30, headers={"User-Agent": "Mozilla/5.0"})
     r.raise_for_status()
     outpath.write_text(r.text, encoding="utf-8")
     # print("Saved OUI file to", outpath)
