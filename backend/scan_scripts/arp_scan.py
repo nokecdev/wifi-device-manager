@@ -5,8 +5,12 @@ import socket
 import subprocess
 import time
 import sys
+import logging
 from shutil import which
 from scapy.all import conf, get_if_addr, get_if_hwaddr, srp, ARP, Ether
+
+# Configure logging to only show warnings and errors (suppress debug/info messages)
+logging.basicConfig(level=logging.WARNING)
 
 from backend.scan_scripts.tools.oui_loader import load_oui, lookup_oui
 
@@ -130,7 +134,7 @@ def perform_enchance_scan():
         devinfo["guessed_type"] = infer_device_type(devinfo)
         results.append(devinfo)
 
-    return {"interface": iface, "myip": myip, "network": network, "devices": results}
+    return {"interface": str(iface), "myip": myip, "network": network, "devices": results}
 
 
 def main():
