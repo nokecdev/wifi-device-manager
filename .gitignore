@@ -1,2 +1,6 @@
 .venv
 backend/scan_scripts/__pycache__
+/.vs
+bin/
+obj/
+__pycache__
