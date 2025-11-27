@@ -1,2 +1,15 @@
 .venv
+.vs
+backend/scan_scripts/tools/__pycache__/
 backend/scan_scripts/__pycache__
+backend/__pycache__
+backend/backend.csproj.user
+backend/bin
+backend/obj
+tools/__pycache__
+tools/oui.txt
+frontend/obj
+/.vs
+bin/
+obj/
+__pycache__

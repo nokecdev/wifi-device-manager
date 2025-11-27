@@ -1,7 +1,10 @@
 import os
 import re
 import requests
+import logging
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 IEEE_OUI_URL = "https://standards-oui.ieee.org/oui/oui.txt"
 CACHE_PATH = Path("tools/oui.txt")
@@ -9,13 +12,14 @@ CACHE_PATH = Path("tools/oui.txt")
 def download_oui(url=IEEE_OUI_URL, outpath=CACHE_PATH, force=False):
     outpath.parent.mkdir(parents=True, exist_ok=True)
     if outpath.exists() and not force:
-        print(f"Using cached OUI file at {outpath}")
+        logger.debug(f"Using cached OUI file at {outpath}")
         return outpath
-    print("Downloading OUI file from IEEE...")
+    r = requests.get(url, timeout=30, headers={"User-Agent": "Mozilla/5.0"})
+    logger.debug("Downloading OUI file from IEEE...")
     r = requests.get(url, timeout=30)
     r.raise_for_status()
     outpath.write_text(r.text, encoding="utf-8")
-    print("Saved OUI file to", outpath)
+    logger.debug(f"Saved OUI file to {outpath}")
     return outpath
 
 def parse_oui_file(path):
