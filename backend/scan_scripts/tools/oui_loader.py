@@ -14,6 +14,7 @@ def download_oui(url=IEEE_OUI_URL, outpath=CACHE_PATH, force=False):
     if outpath.exists() and not force:
         logger.debug(f"Using cached OUI file at {outpath}")
         return outpath
+    r = requests.get(url, timeout=30, headers={"User-Agent": "Mozilla/5.0"})
     logger.debug("Downloading OUI file from IEEE...")
     r = requests.get(url, timeout=30)
     r.raise_for_status()
